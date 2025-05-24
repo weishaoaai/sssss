@@ -19,4 +19,4 @@ grep -Eo 'https://[a-zA-Z0-9.-]+\.trycloudflare\.com' /tmp/cloudflared.log | tai
 
 # [5/6] 安装 x-ui
 echo "[5/6] 安装 x-ui 面板..."
-bash <(curl -Ls https://raw.githubusercontent.com/vaxilu/x-ui/master/install.sh) -y
+bash <(curl -Ls https://raw.githubusercontent.com/vaxilu/x-ui/master/install.sh) -n
