@@ -15,8 +15,8 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# 工作目录
-WORK_DIR="$HOME/app/xray"
+# 工作目录（使用当前目录）
+WORK_DIR="$(pwd)/xray_cloudflared"
 XRAY_BIN="$WORK_DIR/xray"
 CLOUDFLARED_BIN="$WORK_DIR/cloudflared"
 CONFIG_FILE="$WORK_DIR/config.json"
@@ -159,19 +159,19 @@ install_cloudflared() {
 # 启动 Xray
 start_xray() {
     # 检查是否已经运行
-    if pgrep -f "xray.*config.json" > /dev/null; then
+    if pgrep -f "xray.*$CONFIG_FILE" > /dev/null; then
         log_warn "Xray 已在运行,先停止旧进程..."
-        pkill -f "xray.*config.json" || true
+        pkill -f "xray.*$CONFIG_FILE" || true
         sleep 2
     fi
 
     log_info "启动 Xray 服务..."
-    nohup "$XRAY_BIN" -config "$CONFIG_FILE" > xray.log 2>&1 &
+    nohup "$XRAY_BIN" -config "$CONFIG_FILE" > "$WORK_DIR/xray.log" 2>&1 &
     
     sleep 2
     
-    if pgrep -f "xray.*config.json" > /dev/null; then
-        log_info "Xray 启动成功 (PID: $(pgrep -f 'xray.*config.json'))"
+    if pgrep -f "xray.*$CONFIG_FILE" > /dev/null; then
+        log_info "Xray 启动成功 (PID: $(pgrep -f 'xray.*$CONFIG_FILE'))"
     else
         log_error "Xray 启动失败,查看日志: tail -f $WORK_DIR/xray.log"
         exit 1
@@ -278,16 +278,16 @@ start_cloudflared_temporary() {
     log_info "启动 Cloudflared 临时隧道..."
     
     # 清空旧日志
-    > cloudflared.log
+    > "$WORK_DIR/cloudflared.log"
     
     # 启动隧道
-    nohup "$CLOUDFLARED_BIN" tunnel --url http://127.0.0.1:8080 --no-autoupdate > cloudflared.log 2>&1 &
+    nohup "$CLOUDFLARED_BIN" tunnel --url http://127.0.0.1:8080 --no-autoupdate > "$WORK_DIR/cloudflared.log" 2>&1 &
     
     log_info "等待隧道建立..."
     sleep 5
     
     # 提取隧道链接
-    TUNNEL_URL=$(grep -oE 'https?://[A-Za-z0-9._-]+\.trycloudflare\.com' cloudflared.log | head -n1)
+    TUNNEL_URL=$(grep -oE 'https?://[A-Za-z0-9._-]+\.trycloudflare\.com' "$WORK_DIR/cloudflared.log" | head -n1)
     
     if [ -n "$TUNNEL_URL" ]; then
         log_info "Cloudflared 隧道启动成功!"
@@ -296,7 +296,7 @@ start_cloudflared_temporary() {
         echo -e "${GREEN}========================================${NC}"
     else
         log_warn "未能提取隧道地址,请查看日志:"
-        tail -n 20 cloudflared.log
+        tail -n 20 "$WORK_DIR/cloudflared.log"
     fi
 }
 
@@ -312,10 +312,10 @@ start_cloudflared_token() {
     log_info "启动 Cloudflared Token 隧道..."
     
     # 清空旧日志
-    > cloudflared.log
+    > "$WORK_DIR/cloudflared.log"
     
     # 使用 token 启动隧道
-    nohup "$CLOUDFLARED_BIN" tunnel run --token "$CLOUDFLARE_TOKEN" > cloudflared.log 2>&1 &
+    nohup "$CLOUDFLARED_BIN" tunnel run --token "$CLOUDFLARE_TOKEN" > "$WORK_DIR/cloudflared.log" 2>&1 &
     
     log_info "等待隧道建立..."
     sleep 5
@@ -329,7 +329,7 @@ start_cloudflared_token() {
         echo -e "${GREEN}========================================${NC}"
     else
         log_error "隧道启动失败,请查看日志:"
-        tail -n 20 cloudflared.log
+        tail -n 20 "$WORK_DIR/cloudflared.log"
         exit 1
     fi
 }
@@ -397,11 +397,20 @@ show_connection_info() {
     fi
     
     echo ""
+    echo -e "${GREEN}=== 目录结构 ===${NC}"
+    echo -e "$WORK_DIR/"
+    echo -e "├── xray              # Xray 二进制文件"
+    echo -e "├── cloudflared       # Cloudflared 二进制文件"
+    echo -e "├── config.json       # Xray 配置文件"
+    echo -e "├── xray.log         # Xray 日志"
+    echo -e "├── cloudflared.log  # Cloudflared 日志"
+    echo -e "└── .cloudflared_token # Token 文件(如果使用)"
 }
 
 # 主函数
 main() {
     log_info "=== Xray + Cloudflared 一键安装脚本 ==="
+    log_info "工作目录: $WORK_DIR"
     
     create_work_dir
     install_xray
